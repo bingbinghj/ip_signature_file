@@ -4,7 +4,6 @@ import os
 from datetime import datetime
 from user_agents import parse as ua_parse
 import pytz
-from datetime import datetime
 import re
 import requests
 import random
@@ -12,7 +11,7 @@ import random
 app = Flask(__name__)
 
 # ================== 配置 ==================
-# 图片配置
+# 图片配置 (保持不变)
 images_config = {
     'img1': {'file': './static/images/1.png', 'x': 156, 'y': -19.7, 'width': 190, 'height': 150},
     'img2': {'file': './static/images/2.png', 'x': 146, 'y': -195.5, 'width': 191, 'height': 500},
@@ -39,16 +38,16 @@ images_config = {
 
 # SVG输出 配置
 svg_config = {
-    'width': 315,           # SVG 画布的宽度
-    'height': 110,          # SVG 画布的高度
-    'font_size': 12,        # 默认文字大小
-    'text_color': 'black',  # 文本颜色
-    'bg_color': '#ffffff',  # 背景颜色
-    'radius': 5,            # 圆角半径，用于矩形边框和背景
-    'border_color': 'black',# 边框颜色
-    'border_width': 1,      # 边框宽度
-    'left_margin': 5,       # 文本的左边距
-    'line_positions': [20, 40, 60, 80, 100]  # 每一行文字的纵坐标位置
+    'width': 315,
+    'height': 110,
+    'font_size': 12,
+    'text_color': 'black',
+    'bg_color': '#ffffff',
+    'radius': 5,
+    'border_color': 'black',
+    'border_width': 1,
+    'left_margin': 5,
+    'line_positions': [20, 40, 60, 80, 100]
 }
 
 # ================== 功能函数 ==================
@@ -61,27 +60,34 @@ def get_ip():
 
 def get_location_by_ip(ip): 
     try:
-        url = f"https://api.vore.top/api/IPdata?ip={ip}"
+        # 1. 替换为新接口：https://api.iping.cc/v1/query
+        url = f"https://api.iping.cc/v1/query?ip={ip}&language=zh"
         res = requests.get(url, timeout=6)
+        
         if res.status_code == 200:
             data = res.json()
+            # 2. 解析新接口的 JSON 结构 (data['code'] 和 data['data'])
             if data.get("code") == 200:
-                ip_line = data.get("ipinfo", {}).get("text", ip)
+                item = data.get("data", {})
+                
+                # 获取 IP
+                ip_line = item.get("ip", ip)
 
-                adcode = data.get("adcode", {})
-                province = adcode.get("p", "")
+                # 获取省份 (region) 和 城市 (city)
+                province = item.get("region", "")
+                city = item.get("city", "")
 
-                if province.endswith("省") or province.endswith("区"):
-                    province = province[:-1]
+                # 优化：如果是中国，去掉“省”、“自治区”等后缀，让显示更简洁
+                if province:
+                    province = province.replace("省", "").replace("自治区", "").replace("特别行政区", "").replace("市", "")
 
-                ipdata = data.get("ipdata", {})
-                city = ipdata.get("info2", "")
-                district = ipdata.get("info3", "")
-
-                addr_line = " ".join(filter(None, [province, city, district])).strip()
+                # 组合地区信息
+                addr_line = " ".join(filter(None, [province, city])).strip()
                 return ip_line, addr_line if addr_line else "未知地区"
+                
         return ip, "未知地区"
-    except Exception:
+    except Exception as e:
+        print(f"API Error: {e}")
         return ip, "未知地区"
 
 def parse_ua(ua_string):
@@ -125,7 +131,6 @@ def generate_svg(img_key):
   <rect x="0" y="0" width="{w}" height="{h}" rx="{rx}" ry="{rx}" fill="{svg_config['bg_color']}" />
   <rect x="{bw/2}" y="{bw/2}" width="{w-bw}" height="{h-bw}" rx="{rx}" ry="{rx}" fill="none" stroke="{svg_config['border_color']}" stroke-width="{bw}" />'''
 
-    # 背景人物
     img_cfg = images_config.get(img_key)
     if img_cfg and os.path.exists(img_cfg['file']):
         with open(img_cfg['file'], 'rb') as f:
