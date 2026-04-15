@@ -11,7 +11,7 @@ import random
 app = Flask(__name__)
 
 # ================== 配置 ==================
-# 图片配置 (保持不变)
+# 图片配置
 images_config = {
     'img1': {'file': './static/images/1.png', 'x': 156, 'y': -19.7, 'width': 190, 'height': 150},
     'img2': {'file': './static/images/2.png', 'x': 146, 'y': -195.5, 'width': 191, 'height': 500},
@@ -51,6 +51,7 @@ svg_config = {
 }
 
 # ================== 功能函数 ==================
+# 获取客户端IP地址，优先使用X-Forwarded-For头部（适用于反向代理场景），否则使用request.remote_addr
 def get_ip():
     if request.headers.get('X-Forwarded-For'):
         ip = request.headers.get('X-Forwarded-For').split(',')[0]
@@ -60,34 +61,28 @@ def get_ip():
 
 def get_location_by_ip(ip): 
     try:
-        # 1. 替换为新接口：https://api.iping.cc/v1/query
-        url = f"https://api.iping.cc/v1/query?ip={ip}&language=zh"
-        res = requests.get(url, timeout=6)
+        url = f"https://ping0.cc/geo/{ip}" 
+        res = requests.get(url, timeout=5)
         
         if res.status_code == 200:
-            data = res.json()
-            # 2. 解析新接口的 JSON 结构 (data['code'] 和 data['data'])
-            if data.get("code") == 200:
-                item = data.get("data", {})
+            lines = res.text.strip().split('\n')
+            if len(lines) >= 2:
+                ip_display = lines[0].strip()
+                address = lines[1].strip()
                 
-                # 获取 IP
-                ip_line = item.get("ip", ip)
-
-                # 获取省份 (region) 和 城市 (city)
-                province = item.get("region", "")
-                city = item.get("city", "")
-
-                # 优化：如果是中国，去掉“省”、“自治区”等后缀，让显示更简洁
-                if province:
-                    province = province.replace("省", "").replace("自治区", "").replace("特别行政区", "").replace("市", "")
-
-                # 组合地区信息
-                addr_line = " ".join(filter(None, [province, city])).strip()
-                return ip_line, addr_line if addr_line else "未知地区"
+                # 简单清洗：去掉“— 商家名”之后的内容，只保留地理位置
+                if "—" in address:
+                    address = address.split("—")[0].strip()
+                
+                # 进一步缩减：去掉“省”等后缀
+                for suffix in ["省", "自治区", "特别行政区", "市"]:
+                    address = address.replace(suffix, "")
+                
+                return ip_display, address
                 
         return ip, "未知地区"
     except Exception as e:
-        print(f"API Error: {e}")
+        print(f"Ping0 API Error: {e}")
         return ip, "未知地区"
 
 def parse_ua(ua_string):
