@@ -51,20 +51,24 @@ svg_config = {
 }
 
 # ================== 功能函数 ==================
-# 获取客户端IP地址，优先使用X-Forwarded-For头部（适用于反向代理场景），否则使用request.remote_addr
 def get_ip():
-    # 1. 优先读取 Nginx 修正后的 X-Real-IP
-    x_real_ip = request.headers.get('X-Real-IP')
-    if x_real_ip:
-        return x_real_ip
+    # 1. 优先读取我们自定义的 X-Visitor-IP (直接来自 CF)
+    if request.headers.get('X-Visitor-IP'):
+        return request.headers.get('X-Visitor-IP')
+    
+    # 2. 其次读取 Cloudflare 原生 Header
+    if request.headers.get('CF-Connecting-IP'):
+        return request.headers.get('CF-Connecting-IP')
+        
+    # 3. 再次读取 Nginx 修正后的 X-Real-IP
+    if request.headers.get('X-Real-IP'):
+        return request.headers.get('X-Real-IP')
 
-    # 2. 备选方案：读取 X-Forwarded-For
-    x_forwarded_for = request.headers.get('X-Forwarded-For')
-    if x_forwarded_for:
-        # 取第一个非已知的代理 IP
-        return x_forwarded_for.split(',')[0].strip()
-
-    # 3. 最后保底（通常是本地直接访问时）
+    # 4. 最后兜底
+    x_forwarded = request.headers.get('X-Forwarded-For')
+    if x_forwarded:
+        return x_forwarded.split(',')[0].strip()
+        
     return request.remote_addr
 
 def get_location_by_ip(ip): 
