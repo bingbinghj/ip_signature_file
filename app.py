@@ -53,11 +53,19 @@ svg_config = {
 # ================== 功能函数 ==================
 # 获取客户端IP地址，优先使用X-Forwarded-For头部（适用于反向代理场景），否则使用request.remote_addr
 def get_ip():
-    if request.headers.get('X-Forwarded-For'):
-        ip = request.headers.get('X-Forwarded-For').split(',')[0]
-    else:
-        ip = request.remote_addr
-    return ip
+    # 1. 优先读取 Nginx 修正后的 X-Real-IP
+    x_real_ip = request.headers.get('X-Real-IP')
+    if x_real_ip:
+        return x_real_ip
+
+    # 2. 备选方案：读取 X-Forwarded-For
+    x_forwarded_for = request.headers.get('X-Forwarded-For')
+    if x_forwarded_for:
+        # 取第一个非已知的代理 IP
+        return x_forwarded_for.split(',')[0].strip()
+
+    # 3. 最后保底（通常是本地直接访问时）
+    return request.remote_addr
 
 def get_location_by_ip(ip): 
     try:
@@ -73,10 +81,6 @@ def get_location_by_ip(ip):
                 # 简单清洗：去掉“— 商家名”之后的内容，只保留地理位置
                 if "—" in address:
                     address = address.split("—")[0].strip()
-                
-                # 进一步缩减：去掉“省”等后缀
-                for suffix in ["省", "自治区", "特别行政区", "市"]:
-                    address = address.replace(suffix, "")
                 
                 return ip_display, address
                 
